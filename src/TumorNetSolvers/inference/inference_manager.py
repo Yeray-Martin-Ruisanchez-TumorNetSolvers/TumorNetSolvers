@@ -22,7 +22,7 @@ class InferenceManager:
     """
 
     def __init__(self, plans: dict, configuration: str, model: Literal['ViT', 'TumorSurrogate', 'nnUnet'] = "ViT",
-                 device: torch.device = torch.device(f'cuda:0'),  dataset_json :str =''):
+                 device: torch.device = torch.device(f'cuda:0'),  dataset_json :str ='', shape_data: torch.Size = None):
         self.device = device
         self.model = model
 
@@ -30,6 +30,7 @@ class InferenceManager:
         self.plans_manager = PlansManager(plans)
         self.configuration_manager = self.plans_manager.get_configuration(configuration)
         self.dataset_json= dataset_json
+        self.shape_data = shape_data
         # Model initialization
         self.network = self._initialize_model()
 
@@ -76,6 +77,7 @@ class InferenceManager:
             arch_kwargs_req_import=arch_init_kwargs_req_import,
             input_channels=num_input_channels,
             output_channels=num_output_channels,
+            inputs_shape=self.shape_data,
             allow_init=True,
             deep_supervision=enable_deep_supervision
         )

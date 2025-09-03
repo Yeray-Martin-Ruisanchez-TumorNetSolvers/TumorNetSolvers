@@ -294,6 +294,7 @@ class Trainer(object):
             arch_kwargs_req_import=arch_init_kwargs_req_import,
             input_channels=num_input_channels,
             output_channels=num_output_channels,
+            inputs_shape=self.shape_data,
             allow_init=True,
             deep_supervision=enable_deep_supervision
         )
@@ -640,9 +641,11 @@ class Trainer(object):
                                                     pin_memory=self.device.type == 'cuda',
                                                     wait_time=0.002)
         # Initialize the data generators
-        _ = next(mt_gen_train)
+        init_mt_gen_train = next(mt_gen_train)
         _ = next(mt_gen_val)
-        return mt_gen_train, mt_gen_val
+        # Obtain the shape of data
+        shape_data = init_mt_gen_train['data'].shape # Both are the same
+        return mt_gen_train, mt_gen_val, shape_data
 
 
     @staticmethod
@@ -700,7 +703,7 @@ class Trainer(object):
     def on_train_start(self):
         # dataloaders must be instantiated here (instead of __init__) because they need access to the training data
         # which may not be present when doing inference
-        self.dataloader_train, self.dataloader_val = self.get_dataloaders()
+        self.dataloader_train, self.dataloader_val, self.shape_data = self.get_dataloaders()
 
         if not self.was_initialized:
             self.initialize()
