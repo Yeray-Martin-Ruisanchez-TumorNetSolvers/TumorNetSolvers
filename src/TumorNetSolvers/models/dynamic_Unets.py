@@ -207,7 +207,8 @@ class PlainConvUNetNew(nn.Module):
                  nonlin_kwargs: dict = None,
                  deep_supervision: bool = False,
                  nonlin_first: bool = False,
-                 param_dim: int =5
+                 param_dim: int =5,
+                 inputs_shape: torch.Size = None
                  ):
         super().__init__()
         if isinstance(n_conv_per_stage, int):
@@ -221,20 +222,33 @@ class PlainConvUNetNew(nn.Module):
                                         n_conv_per_stage, conv_bias, norm_op, norm_op_kwargs, dropout_op,
                                         dropout_op_kwargs, nonlin, nonlin_kwargs, return_skips=True,
                                         nonlin_first=nonlin_first)
+        
+        latent_spatial_size = list(inputs_shape[-3:])  # e.g., [64, 64, 64]
+        for stride in self.encoder.strides:
+            latent_spatial_size = [i // s for i, s in zip(latent_spatial_size, stride)]
+        self.latent_space_sz = latent_spatial_size[0]
+
+        self.param_fc = nn.Linear(
+            in_features=param_dim,
+            out_features=self.latent_space_sz ** 3 * param_dim
+        )
+
         self.decoder = UNetDecoder(self.encoder, num_classes, n_conv_per_stage_decoder, deep_supervision,
                                    nonlin_first=nonlin_first, param_dim=self.param_dim)
 
     def integrateParams(self, param, latent_space_sz, skips, batch_size):
         param = param.to(skips[-1].device)  # Ensure param is on the same device as the skips
-        param_fc = nn.Linear(in_features=len(param[0]), out_features=latent_space_sz ** 3 * len(param[0])).to(skips[-1].device)
-        p = param_fc(param).view(batch_size, param.size(1), latent_space_sz, latent_space_sz, latent_space_sz)
+        self.param_fc = self.param_fc.to(skips[-1].device)
+        p = self.param_fc(param).view(batch_size, param.size(1), latent_space_sz, latent_space_sz, latent_space_sz)
+        # Concatenate along channel dimension
         z_cat = torch.cat((skips[-1], p), dim=1)
         skips[-1] = z_cat
 
     def forward(self, x, param):
+        batch_size = x.size(0)
         skips = self.encoder(x)
         latent_space_sz = skips[-1].shape[-1]
-        self.integrateParams(param, latent_space_sz, skips, x.size(0))
+        self.integrateParams(param, latent_space_sz, skips, batch_size)
         return self.decoder(skips)
 
     def compute_conv_feature_map_size(self, input_size):
@@ -247,7 +261,7 @@ class PlainConvUNetNew(nn.Module):
 
 
 
-def get_network_from_plans_new(arch_class_name, arch_kwargs, arch_kwargs_req_import, input_channels, output_channels,
+def get_network_from_plans_new(arch_class_name, arch_kwargs, arch_kwargs_req_import, input_channels, output_channels, inputs_shape,
                            allow_init=True, deep_supervision: Union[bool, None] = None):
     architecture_kwargs = dict(**arch_kwargs)
     architecture_classes = {
@@ -268,6 +282,7 @@ def get_network_from_plans_new(arch_class_name, arch_kwargs, arch_kwargs_req_imp
     network = nw_class(
         input_channels=input_channels,
         num_classes=output_channels,
+        inputs_shape=inputs_shape,
         **architecture_kwargs
     )
 

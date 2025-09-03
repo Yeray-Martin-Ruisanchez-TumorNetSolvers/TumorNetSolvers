@@ -85,13 +85,15 @@ def infer_parameters(dataset_name: str, model: str, data_folder: str, output_bas
     dataset = CustomDataset(data_folder, test_keys)
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
     os.makedirs(output_base, exist_ok=True)
+    # Obtain the shape of the input
+    shape_data = dataset[0][0].shape # First [0] gets the sample tuple, second [0] extracts the image (data['data']) from it
 
     # Create output directories
     output_folder = os.path.join(output_base, f"_{model}_{signature}")
     os.makedirs(os.path.join(output_folder, "optimizeOutputPatients"), exist_ok=True)
 
     # Initialize InferenceManager and load checkpoint
-    infer_manager = InferenceManager(plan, configuration='3d_fullres', model=model, device=device, dataset_json=dataset_json)
+    infer_manager = InferenceManager(plan, configuration='3d_fullres', model=model, device=device, dataset_json=dataset_json, shape_data=shape_data)
     
     if chkpt and os.path.exists(chkpt):
         checkpoint_path = chkpt
